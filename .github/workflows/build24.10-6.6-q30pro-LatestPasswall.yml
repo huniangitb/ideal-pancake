@@ -98,7 +98,6 @@ jobs:
     - name: Install feeds
       run: |
         cd openwrt
-        # The following line is good practice but not related to the Go error.
         ./scripts/feeds install -d y -p istore luci-app-store
         ./scripts/feeds install -a 
         
@@ -119,7 +118,6 @@ jobs:
         find dl -size -1024c -exec ls -l {} \;
         find dl -size -1024c -exec rm -f {} \;
 
-    # [FIX] Add a clean step to resolve Go dependency issues
     - name: Clean build directories
       run: |
         cd openwrt
@@ -145,13 +143,14 @@ jobs:
       if: (!cancelled())
       run: df -hT
 
+    # [FIXED] Corrected the syntax for uploading the .config file.
+    # The 'path' now correctly points from the workspace root.
     - name: Upload build configuration
       uses: actions/upload-artifact@main
       if: steps.compile.outputs.status == 'success'
       with:
         name: build-config${{ env.DEVICE_NAME }}${{ env.FILE_DATE }}
         path: openwrt/.config
-      working-directory: openwrt
 
     - name: Upload bin directory
       uses: actions/upload-artifact@main
