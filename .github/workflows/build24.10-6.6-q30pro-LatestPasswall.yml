@@ -101,6 +101,7 @@ jobs:
     - name: Install feeds
       run: |
         cd openwrt
+        ./scripts/feeds install -d y -p istore luci-app-store
         ./scripts/feeds install -a 
         
     - name: Load custom configuration
@@ -115,6 +116,7 @@ jobs:
       id: package
       run: |
         cd openwrt
+        wget https://raw.githubusercontent.com/huniangitb/ideal-pancake/refs/heads/main/2410-6.6-q30pro-passwall.config -o .config
         make oldconfig
         # 'make download' will now only fetch missing files thanks to the cache
         make download -j8
