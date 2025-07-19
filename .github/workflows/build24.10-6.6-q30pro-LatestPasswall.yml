@@ -121,7 +121,7 @@ jobs:
     - name: Clean build directories
       run: |
         cd openwrt
-        make clean
+         #make clean
 
     - name: Compile the firmware
       id: compile
