@@ -118,7 +118,6 @@ jobs:
         find dl -size -1024c -exec ls -l {} \;
         find dl -size -1024c -exec rm -f {} \;
 
-    # MODIFICATION: Steps moved here to upload .config before compiling.
     - name: Generate artifact information
       run: |
         cd openwrt
@@ -126,11 +125,19 @@ jobs:
         [ -s DEVICE_NAME ] && echo "DEVICE_NAME=_$(cat DEVICE_NAME)" >> $GITHUB_ENV
         echo "FILE_DATE=_$(date +"%Y%m%d%H%M")" >> $GITHUB_ENV
         
+    # [FIXED] Verify .config existence and copy it to a non-hidden file for reliable upload.
+    - name: Prepare build configuration for upload
+      run: |
+        echo "Verifying .config file existence:"
+        ls -la openwrt/.config
+        echo "Copying .config to build.config for artifact upload."
+        cp openwrt/.config openwrt/build.config
+
     - name: Upload build configuration
       uses: actions/upload-artifact@main
       with:
         name: build-config${{ env.DEVICE_NAME }}${{ env.FILE_DATE }}
-        path: openwrt/.config
+        path: openwrt/build.config
 
     - name: Clean build directories
       run: |
