@@ -19,3 +19,5 @@ sed -i '1i src-git passwall_packages https://github.com/xiaorouji/openwrt-passwa
 sed -i '2i src-git passwall2 https://github.com/xiaorouji/openwrt-passwall2.git;main' feeds.conf.default
 echo >> feeds.conf.default
 echo 'src-git istore https://github.com/linkease/istore;main' >> feeds.conf.default
+    # feeds获取源码：
+echo 'src-git taskplan  https://github.com/sirpdboy/luci-app-taskplan' >> feeds.conf.default
