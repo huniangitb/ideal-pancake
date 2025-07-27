@@ -58,7 +58,8 @@ jobs:
         key: ccache-${{ runner.os }}-${{ env.REPO_BRANCH }}-${{ hashFiles(env.CONFIG_FILE) }}
         restore-keys: |
           ccache-${{ runner.os }}-${{ env.REPO_BRANCH }}-
-        enable-cross-os-archive: true
+        # [FIXED] 使用正确的驼峰式参数名
+        enableCrossOsArchive: true
 
     - name: Enable ccache
       run: |
@@ -81,7 +82,8 @@ jobs:
         key: dl-${{ runner.os }}-${{ env.REPO_BRANCH }}-${{ hashFiles(env.CONFIG_FILE) }}
         restore-keys: |
           dl-${{ runner.os }}-${{ env.REPO_BRANCH }}-
-        enable-cross-os-archive: true
+        # [FIXED] 使用正确的驼峰式参数名
+        enableCrossOsArchive: true
 
     - name: Load custom feeds
       run: |
@@ -214,5 +216,9 @@ jobs:
       if: env.UPLOAD_RELEASE == 'true' && !cancelled()
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
+        # 保留最新的 5 个 Release
         keep-count: 5
-        delete-tags: true
+        # [FIXED] 明确禁用“保留旧次要版本”功能，因为它是必需参数
+        keep-old-minor-releases: false
+        # [FIXED] 使用正确的参数名来删除与被删除的 Release 关联的 Git 标签
+        remove-tags: true
