@@ -106,61 +106,21 @@ jobs:
       run: |
         [ -e files ] && mv files openwrt/files
         [ -e $CONFIG_FILE ] && mv $CONFIG_FILE openwrt/.config
-
-        # Download and apply the custom filogic.mk for JCG Q30 Pro factory support
-        echo "Downloading custom filogic.mk for JCG Q30 Pro factory support..."
-        wget -q https://raw.githubusercontent.com/huniangitb/ideal-pancake/refs/heads/main/filogic.mk -O openwrt/target/linux/mediatek/image/filogic.mk
-        
+        # Download and apply the modified filogic.mk
+        wget -O openwrt/target/linux/mediatek/image/filogic.mk https://raw.githubusercontent.com/huniangitb/ideal-pancake/refs/heads/main/filogic.mk
         chmod +x $DIY_P2_SH
         cd openwrt
         $GITHUB_WORKSPACE/$DIY_P2_SH
 
-    # 新增：编译步骤
-    - name: Download all packages
-      run: |
-        cd openwrt
-        make defconfig
-        make download -j$(nproc)
+    # (The build steps like 'make download', 'make -jN' etc. are likely inside DIY_P2_SH)
+    # The following step should be placed after the build is complete and before a new release is uploaded.
 
-    - name: Build firmware
-      run: |
-        cd openwrt
-        echo -e "$(nproc) thread compile"
-        make -j$(nproc) V=s
-
-    # 编译完成后，通常会有上传固件和清理旧 Release 的步骤
-    # 以下为示例，请根据您的实际需求调整
-    - name: Organize files
-      id: organize
-      if: env.UPLOAD_FIRMWARE == 'true' && !cancelled()
-      run: |
-        cd openwrt/bin/targets/*/*
-        RELEASE_NAME=$(date +"%Y.%m.%d-%H%M")
-        echo "STATUS=success" >> $GITHUB_OUTPUT
-        echo "RELEASE_NAME=$RELEASE_NAME" >> $GITHUB_OUTPUT
-        echo "FIRMWARE_DIR=$PWD" >> $GITHUB_ENV
-
-    - name: Upload firmware directory
-      uses: actions/upload-artifact@v4
-      if: steps.organize.outputs.STATUS == 'success' && env.UPLOAD_BIN_DIR == 'true' && !cancelled()
-      with:
-        name: OpenWrt_firmware-${{ steps.organize.outputs.RELEASE_NAME }}
-        path: openwrt/bin/targets/
-
-    - name: Upload firmware to Release
-      uses: softprops/action-gh-release@v1
-      if: steps.organize.outputs.STATUS == 'success' && env.UPLOAD_RELEASE == 'true' && !cancelled()
-      with:
-        tag_name: ${{ steps.organize.outputs.RELEASE_NAME }}
-        body: |
-          Build immortalwrt24.10-6.6 JCG Q30Pro Latest Passwall
-          Build time: ${{ steps.organize.outputs.RELEASE_NAME }}
-        files: openwrt/bin/targets/*/*/*
-
-    # 修正后的 Delete old releases 步骤
     - name: Delete old releases
       uses: Nats-ji/delete-old-releases@v1.0.1
       with:
+        # Required: GitHub token to interact with the API
         token: ${{ secrets.GITHUB_TOKEN }}
-        keep-count: 5 # 保留最新的 5 个 release
-        # remove-tags: true # 如果需要同时删除关联的标签，请取消注释此行
+        # The number of latest releases to keep.
+        keep-count: '5'
+        # Whether to remove the associated Git tags.
+        remove-tags: true
