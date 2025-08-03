@@ -47,41 +47,67 @@ jobs:
         sudo -E apt-get -qq install ack antlr3 asciidoc autoconf automake autopoint binutils bison build-essential bzip2 ccache clang cmake cpio curl device-tree-compiler ecj fastjar flex gawk gettext gcc-multilib g++-multilib git gnutls-dev gperf haveged help2man intltool lib32gcc-s1 libc6-dev-i386 libelf-dev libglib2.0-dev libgmp3-dev libltdl-dev libmpc-dev libmpfr-dev libncurses-dev libpython3-dev libreadline-dev libssl-dev libtool libyaml-dev libz-dev lld llvm lrzsz mkisofs msmtp nano ninja-build p7zip p7zip-full patch pkgconf python3 python3-pip python3-ply python3-docutils python3-pyelftools qemu-utils re2c rsync scons squashfs-tools subversion swig texinfo uglifyjs upx-ucl unzip vim wget xmlto xxd zlib1g-dev zstd
         sudo -E apt-get -qq autoremove --purge
         sudo -E apt-get -qq clean
+        
+        # 积极清理不必要的文件以释放磁盘空间
+        echo "Aggressively cleaning up unnecessary files to free disk space..."
+        sudo apt-get -qq autoremove --purge
+        sudo apt-get -qq clean
+        sudo rm -rf /usr/share/doc/*
+        sudo rm -rf /usr/share/man/*
+        sudo rm -rf /usr/share/locale/*
+        sudo rm -rf /var/cache/apt/archives/*.deb
+        sudo rm -rf /var/lib/apt/lists/*
+        sudo rm -rf /tmp/*
+        sudo rm -rf /var/tmp/*
+        
         sudo timedatectl set-timezone "$TZ"
         sudo mkdir -p /workdir
         sudo chown $USER:$GROUPS /workdir
+        
+        echo "Disk space after initialization and aggressive cleanup:"
+        df -hT # 检查清理后的磁盘空间
 
-    - name: Setup ccache
-      uses: actions/cache@v4
-      with:
-        path: ~/.ccache
-        key: ccache-${{ runner.os }}-${{ env.REPO_BRANCH }}-${{ hashFiles(env.CONFIG_FILE) }}
-        restore-keys: |
-          ccache-${{ runner.os }}-${{ env.REPO_BRANCH }}-
-        enableCrossOsArchive: true
+    # --- 禁用 ccache 缓存 ---
+    # - name: Setup ccache
+    #   uses: actions/cache@v4
+    #   with:
+    #     path: ~/.ccache
+    #     key: ccache-${{ runner.os }}-${{ env.REPO_BRANCH }}-${{ hashFiles(env.CONFIG_FILE) }}
+    #     restore-keys: |
+    #       ccache-${{ runner.os }}-${{ env.REPO_BRANCH }}-
+    #     enableCrossOsArchive: true
 
-    - name: Enable ccache
-      run: |
-        echo "USE_CCACHE=1" >> $GITHUB_ENV
-        echo "CCACHE_DIR=~/.ccache" >> $GITHUB_ENV
-        ccache -M 10G
-        ccache -z
+    # - name: Enable ccache
+    #   run: |
+    #     echo "USE_CCACHE=1" >> $GITHUB_ENV
+    #     echo "CCACHE_DIR=~/.ccache" >> $GITHUB_ENV
+    #     ccache -M 10G
+    #     ccache -z
+    # --- 禁用 ccache 缓存结束 ---
 
     - name: Clone source code
       working-directory: /workdir
       run: |
+        echo "Disk space before cloning source code:"
         df -hT $PWD
-        git clone $REPO_URL -b $REPO_BRANCH openwrt
+        echo "Performing a shallow clone to save space..."
+        git clone --depth=1 --single-branch -b $REPO_BRANCH $REPO_URL openwrt
         ln -sf /workdir/openwrt $GITHUB_WORKSPACE/openwrt
+        echo "Disk space after shallow clone:"
+        df -hT $PWD
+        echo "Size of the .git directory:"
+        du -sh /workdir/openwrt/.git
 
-    - name: Restore DL cache
-      uses: actions/cache@v4
-      with:
-        path: openwrt/dl
-        key: dl-${{ runner.os }}-${{ env.REPO_BRANCH }}-${{ hashFiles(env.CONFIG_FILE) }}
-        restore-keys: |
-          dl-${{ runner.os }}-${{ env.REPO_BRANCH }}-
-        enableCrossOsArchive: true
+    # --- 禁用 DL 缓存 ---
+    # - name: Restore DL cache
+    #   uses: actions/cache@v4
+    #   with:
+    #     path: openwrt/dl
+    #     key: dl-${{ runner.os }}-${{ env.REPO_BRANCH }}-${{ hashFiles(env.CONFIG_FILE) }}
+    #     restore-keys: |
+    #       dl-${{ runner.os }}-${{ env.REPO_BRANCH }}-
+    #     enableCrossOsArchive: true
+    # --- 禁用 DL 缓存结束 ---
 
     - name: Load custom feeds
       run: |
@@ -109,7 +135,6 @@ jobs:
         
         # Download and apply the custom filogic.mk
         echo "Downloading custom filogic.mk for JCG Q30 Pro factory support..."
-        # 修正路径：根据你的指正，路径是 target/linux/mediatek/image/
         wget -q https://raw.githubusercontent.com/huniangitb/ideal-pancake/refs/heads/main/filogic.mk -O openwrt/target/linux/mediatek/image/filogic.mk
         
         chmod +x $DIY_P2_SH
@@ -124,7 +149,10 @@ jobs:
         make download -j8
         find dl -size -1024c -exec ls -l {} \;
         find dl -size -1024c -exec rm -f {} \;
+        echo "Disk space after package download (dl directory):"
+        df -h # 检查下载包后的磁盘空间
 
+        
     - name: Generate artifact information
       run: |
         cd openwrt
@@ -156,15 +184,19 @@ jobs:
       run: |
         cd openwrt
         echo -e "$(nproc) thread compile"
-        make -j$(nproc) || make -j1 || make -j1 V=s
+        make -j$(nproc) || make -j1 V=s || make -j1 V=sc # 增加 V=s/V=sc 用于调试
         echo "status=success" >> $GITHUB_OUTPUT
+        echo "Disk space after compilation:"
+        df -h
 
-    - name: Show ccache statistics
-      if: (!cancelled())
-      run: |
-        ccache -s
+    # --- 禁用 ccache 统计 ---
+    # - name: Show ccache statistics
+    #   if: (!cancelled())
+    #   run: |
+    #     ccache -s
+    # --- 禁用 ccache 统计结束 ---
 
-    - name: Check space usage
+    - name: Check space usage (Final check)
       if: (!cancelled())
       run: df -hT
 
