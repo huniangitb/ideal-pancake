@@ -106,6 +106,11 @@ jobs:
       run: |
         [ -e files ] && mv files openwrt/files
         [ -e $CONFIG_FILE ] && mv $CONFIG_FILE openwrt/.config
+
+        # Download and apply the custom filogic.mk
+        echo "Downloading custom filogic.mk for JCG Q30 Pro factory support..."
+        wget -q https://raw.githubusercontent.com/huniangitb/ideal-pancake/refs/heads/main/filogic.mk -O openwrt/target/linux/filogic/image/filogic.mk
+        
         chmod +x $DIY_P2_SH
         cd openwrt
         $GITHUB_WORKSPACE/$DIY_P2_SH
