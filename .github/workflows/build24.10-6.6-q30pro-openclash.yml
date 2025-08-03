@@ -107,12 +107,10 @@ jobs:
         [ -e files ] && mv files openwrt/files
         [ -e $CONFIG_FILE ] && mv $CONFIG_FILE openwrt/.config
         
-        # <<<--- 【新加内容】 --->>>
         # Download and apply the custom filogic.mk
         echo "Downloading custom filogic.mk for JCG Q30 Pro factory support..."
-        # 注意：filogic.mk 应该放在 target/linux/filogic/image/ 目录下
+        # 修正路径：根据你的指正，路径是 target/linux/mediatek/image/
         wget -q https://raw.githubusercontent.com/huniangitb/ideal-pancake/refs/heads/main/filogic.mk -O openwrt/target/linux/mediatek/image/filogic.mk
-        # <<<--- 【新加内容结束】 --->>>
         
         chmod +x $DIY_P2_SH
         cd openwrt
@@ -217,15 +215,10 @@ jobs:
         retain_days: 0
         keep_minimum_runs: 2
 
-    # <<<--- 【修改部分】 --->>>
     - name: Remove old Releases
       uses: Nats-ji/delete-old-releases@v1.0.1
       if: env.UPLOAD_RELEASE == 'true' && !cancelled()
       with:
-        # 必需：提供 GITHUB_TOKEN
         token: ${{ secrets.GITHUB_TOKEN }}
-        # 保留最新的 5 个 Release
         keep-count: '5'
-        # 删除与被删除的 Release 关联的 Git 标签
         remove-tags: true
-    # <<<--- 【修改结束】 --->>>
