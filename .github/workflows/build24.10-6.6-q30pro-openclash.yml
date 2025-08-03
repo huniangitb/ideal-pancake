@@ -107,120 +107,19 @@ jobs:
         [ -e files ] && mv files openwrt/files
         [ -e $CONFIG_FILE ] && mv $CONFIG_FILE openwrt/.config
 
-        # Download and apply the custom filogic.mk
+        # Download and apply the custom filogic.mk for JCG Q30 Pro factory support
         echo "Downloading custom filogic.mk for JCG Q30 Pro factory support..."
-        wget -q https://raw.githubusercontent.com/huniangitb/ideal-pancake/refs/heads/main/filogic.mk -O openwrt/target/linux/filogic/image/filogic.mk
+        # 修正 wget 输出路径为实际位置
+        wget -q https://raw.githubusercontent.com/huniangitb/ideal-pancake/refs/heads/main/filogic.mk -O openwrt/target/linux/mediatek/image/filogic.mk
         
         chmod +x $DIY_P2_SH
         cd openwrt
         $GITHUB_WORKSPACE/$DIY_P2_SH
 
-    - name: Prepare configuration and download packages
-      id: package
-      run: |
-        cd openwrt
-        make oldconfig
-        make download -j8
-        find dl -size -1024c -exec ls -l {} \;
-        find dl -size -1024c -exec rm -f {} \;
-
-    - name: Generate artifact information
-      run: |
-        cd openwrt
-        grep '^CONFIG_TARGET.*DEVICE.*=y' .config | sed -r 's/.*DEVICE_(.*)=y/\1/' > DEVICE_NAME
-        [ -s DEVICE_NAME ] && echo "DEVICE_NAME=_$(cat DEVICE_NAME)" >> $GITHUB_ENV
-        echo "FILE_DATE=_$(date +"%Y%m%d%H%M")" >> $GITHUB_ENV
-        
-    - name: Prepare build configuration for upload
-      run: |
-        echo "Verifying .config file existence:"
-        ls -la openwrt/.config
-        echo "Copying .config to build.config for artifact upload."
-        cp openwrt/.config openwrt/build.config
-
-    - name: Upload build configuration
-      uses: actions/upload-artifact@v4
-      with:
-        name: build-config${{ env.DEVICE_NAME }}${{ env.FILE_DATE }}
-        path: openwrt/build.config
-
-    - name: Clean build directories
-      run: |
-        cd openwrt
-        # "make clean" is commented out to speed up rebuilds on failure.
-        # make clean
-
-    - name: Compile the firmware
-      id: compile
-      run: |
-        cd openwrt
-        echo -e "$(nproc) thread compile"
-        make -j$(nproc) || make -j1 || make -j1 V=s
-        echo "status=success" >> $GITHUB_OUTPUT
-
-    - name: Show ccache statistics
-      if: (!cancelled())
-      run: |
-        ccache -s
-
-    - name: Check space usage
-      if: (!cancelled())
-      run: df -hT
-
-    - name: Upload bin directory
-      uses: actions/upload-artifact@v4
-      if: steps.compile.outputs.status == 'success' && env.UPLOAD_BIN_DIR == 'true'
-      with:
-        name: OpenWrt_bin${{ env.DEVICE_NAME }}${{ env.FILE_DATE }}
-        path: openwrt/bin
-
-    - name: Organize files
-      id: organize
-      if: env.UPLOAD_FIRMWARE == 'true' && !cancelled()
-      run: |
-        cd openwrt/bin/targets/*/*
-        rm -rf packages
-        echo "FIRMWARE=$PWD" >> $GITHUB_ENV
-        echo "status=success" >> $GITHUB_OUTPUT
-
-    - name: Upload firmware directory
-      uses: actions/upload-artifact@v4
-      if: steps.organize.outputs.status == 'success' && !cancelled()
-      with:
-        name: OpenWrt_firmware${{ env.DEVICE_NAME }}${{ env.FILE_DATE }}
-        path: ${{ env.FIRMWARE }}
-
-    - name: Generate release tag
-      id: tag
-      if: env.UPLOAD_RELEASE == 'true' && !cancelled()
-      run: |
-        echo "release_tag=$(date +"%Y.%m.%d-%H%M")" >> $GITHUB_OUTPUT
-        touch "${RELEASE_FILE}"
-        echo "status=success" >> $GITHUB_OUTPUT
-    
-    - name: Upload firmware to release
-      uses: softprops/action-gh-release@v2
-      if: steps.tag.outputs.status == 'success' && !cancelled()
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        tag_name: ${{ steps.tag.outputs.release_tag }}
-        body_path: ${{ env.RELEASE_FILE }}
-        files: ${{ env.FIRMWARE }}/*
-
-    - name: Delete workflow runs
-      uses: Mattraks/delete-workflow-runs@v2
-      with:
-        retain_days: 0
-        keep_minimum_runs: 2
-
-    - name: Remove old Releases
+    # 修正后的 Delete old releases 步骤
+    - name: Delete old releases
       uses: Nats-ji/delete-old-releases@v1.0.1
-      if: env.UPLOAD_RELEASE == 'true' && !cancelled()
       with:
-        # 保留最新的 5 个 Release
-        keep_latest: 5
-        # 删除与被删除的 Release 关联的 Git 标签
-        delete_tags: true
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        token: ${{ secrets.GITHUB_TOKEN }}
+        keep-count: 5 # 保留最新的 5 个 release
+        # remove-tags: true # 如果需要同时删除关联的标签，请取消注释此行
