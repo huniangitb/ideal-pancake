@@ -215,7 +215,7 @@ jobs:
         keep_minimum_runs: 2
 
     - name: Remove old Releases
-      uses: delet-old-releases/delet-old-releases@v1
+      uses: Nats-ji/delete-old-releases@v1.0.1
       if: env.UPLOAD_RELEASE == 'true' && !cancelled()
       with:
         # 保留最新的 5 个 Release
