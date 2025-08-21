@@ -1,6 +1,6 @@
 237大佬源码编译路由器固件。
 immortalwrt24.10（6.6内核+闭源MTK驱动）主路由版。
-含openclash、ddns、vlmcsd、taskplan模块。
+含openclash、ddns、taskplan模块。
 默认IP地址：192.168.6.1
 密码：password
 
