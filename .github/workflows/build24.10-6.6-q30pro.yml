@@ -1,0 +1,219 @@
+# https://github.com/P3TERX/Actions-OpenWrt
+# ... (header content remains the same) ...
+
+name: Build immortalwrt24.10-6.6 JCG Q30Pro Latest
+
+on:
+  repository_dispatch:
+  workflow_dispatch:
+
+env:
+  
+  REPO_URL: https://github.com/padavanonly/immortalwrt-mt798x-24.10
+  REPO_BRANCH: openwrt-24.10-6.6
+  FEEDS_CONF: feeds.conf.default
+  CONFIG_FILE: 2410-6.6-q30pro.config
+  DIY_P1_SH: 2410-diy-part1-pw.sh
+  DIY_P2_SH: 2410-6.6-diy-part2-6-1-pw.sh
+  RELEASE_FILE: 2410-6.6-oh-release.txt
+  UPLOAD_BIN_DIR: false
+  UPLOAD_FIRMWARE: true
+  UPLOAD_RELEASE: true
+  TZ: Asia/Shanghai
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Initialization environment
+      env:
+        DEBIAN_FRONTEND: noninteractive
+      run: |
+        # Optional but recommended: keep the aggressive cleanup
+        sudo swapoff -a
+        sudo rm -f /swapfile
+        sudo rm -rf /etc/apt/sources.list.d/* /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+        sudo docker image prune --all --force
+        sudo -E apt-get -qq update
+        sudo -E apt-get -qq install ack antlr3 asciidoc autoconf automake autopoint binutils bison build-essential bzip2 ccache clang cmake cpio curl device-tree-compiler ecj fastjar flex gawk gettext gcc-multilib g++-multilib git gnutls-dev gperf haveged help2man intltool lib32gcc-s1 libc6-dev-i386 libelf-dev libglib2.0-dev libgmp3-dev libltdl-dev libmpc-dev libmpfr-dev libncurses-dev libpython3-dev libreadline-dev libssl-dev libtool libyaml-dev libz-dev lld llvm lrzsz mkisofs msmtp nano ninja-build p7zip p7zip-full patch pkgconf python3 python3-pip python3-ply python3-docutils python3-pyelftools qemu-utils re2c rsync scons squashfs-tools subversion swig texinfo uglifyjs upx-ucl unzip vim wget xmlto xxd zlib1g-dev zstd
+        sudo -E apt-get -qq autoremove --purge
+        sudo -E apt-get -qq clean
+        sudo rm -rf /usr/share/doc/* /usr/share/man/* /usr/share/locale/*
+        sudo rm -rf /var/lib/apt/lists/*
+        
+        sudo timedatectl set-timezone "$TZ"
+        
+        # <<< CHANGE: Prepare /mnt directory for the build
+        # Grant ownership of /mnt to the current user to avoid permission errors.
+        echo "Preparing /mnt for build..."
+        sudo chown $USER:$GROUPS /mnt
+        
+        echo "Disk space after initialization:"
+        df -hT
+
+    # --- Caching is disabled, no changes here ---
+
+    - name: Clone source code
+      # <<< CHANGE: Change working directory to /mnt
+      working-directory: /mnt
+      run: |
+        echo "Disk space before cloning into /mnt:"
+        df -hT
+        git clone --depth=1 --single-branch -b $REPO_BRANCH $REPO_URL openwrt
+        
+        # <<< CHANGE: Update the symbolic link to point to the new location in /mnt
+        ln -sf /mnt/openwrt $GITHUB_WORKSPACE/openwrt
+        
+        echo "Disk space after cloning into /mnt:"
+        df -hT
+        echo "Size of the cloned directory in /mnt:"
+        du -sh /mnt/openwrt
+
+    # --- Caching is disabled, no changes here ---
+
+    - name: Load custom feeds
+      run: |
+        [ -e $FEEDS_CONF ] && mv $FEEDS_CONF openwrt/feeds.conf.default
+        chmod +x $DIY_P1_SH
+        cd openwrt
+        $GITHUB_WORKSPACE/$DIY_P1_SH
+
+    - name: Update feeds
+      run: |
+         cd openwrt
+         ./scripts/feeds update -a
+         rm -rf feeds/packages/lang/golang
+         git clone https://github.com/kenzok8/golang feeds/packages/lang/golang
+
+    - name: Install feeds
+      run: |
+        cd openwrt
+        ./scripts/feeds install -a 
+        
+    - name: Load custom configuration
+      run: |
+        [ -e files ] && mv files openwrt/files
+        [ -e $CONFIG_FILE ] && mv $CONFIG_FILE openwrt/.config
+        wget -q https://raw.githubusercontent.com/huniangitb/ideal-pancake/refs/heads/main/filogic.mk -O openwrt/target/linux/mediatek/image/filogic.mk
+        chmod +x $DIY_P2_SH
+        cd openwrt
+        $GITHUB_WORKSPACE/$DIY_P2_SH
+
+    - name: Prepare configuration and download packages
+      id: package
+      run: |
+        cd openwrt
+        make oldconfig
+        make download -j8
+        find dl -size -1024c -exec ls -l {} \;
+        find dl -size -1024c -exec rm -f {} \;
+        echo "Disk space after package download (in /mnt):"
+        df -hT
+        echo "Size of dl directory:"
+        du -sh dl
+
+    # <<< CHANGE: The step to remove the 'dl' directory is now optional!
+    # With ~64GB of free space in /mnt, you likely no longer need to delete the 'dl' directory
+    # before compiling. This can also allow you to enable 'dl' caching in the future to speed up builds.
+    # I am commenting it out. If you still face issues, you can re-enable it.
+    # - name: Free up disk space by removing dl directory
+    #  run: |
+    #    rm -rf openwrt/dl
+    #    echo "Disk space after removing dl directory:"
+    #    df -hT
+
+    - name: Generate artifact information
+      # ... (This and subsequent steps need no changes as they correctly reference the 'openwrt' symlink) ...
+      run: |
+        cd openwrt
+        grep '^CONFIG_TARGET.*DEVICE.*=y' .config | sed -r 's/.*DEVICE_(.*)=y/\1/' > DEVICE_NAME
+        [ -s DEVICE_NAME ] && echo "DEVICE_NAME=_$(cat DEVICE_NAME)" >> $GITHUB_ENV
+        echo "FILE_DATE=_$(date +"%Y%m%d%H%M")" >> $GITHUB_ENV
+        
+    - name: Prepare build configuration for upload
+      run: |
+        cp openwrt/.config openwrt/build.config
+
+    - name: Upload build configuration
+      uses: actions/upload-artifact@v4
+      with:
+        name: build-config${{ env.DEVICE_NAME }}${{ env.FILE_DATE }}
+        path: openwrt/build.config
+
+    - name: Compile the firmware
+      id: compile
+      run: |
+        cd openwrt
+        echo -e "$(nproc) thread compile"
+        make -j$(nproc) || make -j1 V=s || make -j1 V=sc
+        echo "status=success" >> $GITHUB_OUTPUT
+        echo "Disk space after compilation in /mnt:"
+        df -hT
+
+    # ... (All remaining steps for uploading artifacts and releases remain the same) ...
+    # ... They will work correctly because they use paths relative to the workspace, ...
+    # ... and we created a symlink pointing to our build directory in /mnt.
+
+    - name: Check space usage (Final check)
+      if: (!cancelled())
+      run: df -hT
+
+    - name: Upload bin directory
+      uses: actions/upload-artifact@v4
+      if: steps.compile.outputs.status == 'success' && env.UPLOAD_BIN_DIR == 'true'
+      with:
+        name: OpenWrt_bin${{ env.DEVICE_NAME }}${{ env.FILE_DATE }}
+        path: openwrt/bin
+
+    - name: Organize files
+      id: organize
+      if: env.UPLOAD_FIRMWARE == 'true' && !cancelled()
+      run: |
+        cd openwrt/bin/targets/*/*
+        rm -rf packages
+        echo "FIRMWARE=$PWD" >> $GITHUB_ENV
+        echo "status=success" >> $GITHUB_OUTPUT
+
+    - name: Upload firmware directory
+      uses: actions/upload-artifact@v4
+      if: steps.organize.outputs.status == 'success' && !cancelled()
+      with:
+        name: OpenWrt_firmware${{ env.DEVICE_NAME }}${{ env.FILE_DATE }}
+        path: ${{ env.FIRMWARE }}
+
+    - name: Generate release tag
+      id: tag
+      if: env.UPLOAD_RELEASE == 'true' && !cancelled()
+      run: |
+        echo "release_tag=$(date +"%Y.%m.%d-%H%M")" >> $GITHUB_OUTPUT
+        touch "${RELEASE_FILE}"
+        echo "status=success" >> $GITHUB_OUTPUT
+
+    - name: Upload firmware to release
+      uses: softprops/action-gh-release@v2
+      if: steps.tag.outputs.status == 'success' && !cancelled()
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ steps.tag.outputs.release_tag }}
+        body_path: ${{ env.RELEASE_FILE }}
+        files: ${{ env.FIRMWARE }}/*
+
+    - name: Delete workflow runs
+      uses: Mattraks/delete-workflow-runs@v2
+      with:
+        retain_days: 0
+        keep_minimum_runs: 2
+        
+    - name: Remove old Releases
+      uses: dev-drprasad/delete-older-releases@master
+      if: env.UPLOAD_RELEASE == 'true' && !cancelled()
+      with:
+        keep_latest: 12
+        delete_tags: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
