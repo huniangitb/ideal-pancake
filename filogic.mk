@@ -110,11 +110,10 @@ define Device/jcg_q30-pro
   DEVICE_MODEL := Q30 PRO
   DEVICE_DTS := mt7981b-jcg-q30-pro
   DEVICE_DTS_DIR := ../dts
-  SUPPORTED_DEVICES := jcg,q30-pro
   UBINIZE_OPTS := -E 5
   BLOCKSIZE := 128k
   PAGESIZE := 2048
-  IMAGE_SIZE := 114816k
+  IMAGE_SIZE := 114688k
   KERNEL_IN_UBI := 1
   IMAGES += factory.bin
   IMAGE/factory.bin := append-ubi | check-size $$$$(IMAGE_SIZE)
