@@ -82,6 +82,15 @@ jobs:
         cd openwrt
         $GITHUB_WORKSPACE/$DIY_P1_SH
 
+    - name: Configure git to use GH_TOKEN for https://github.com/
+      env:
+        GH_TOKEN: ${{ secrets.GH_TOKEN }}
+      run: |
+        # Configure git to use the GH_TOKEN non-interactively for https://github.com/ URLs
+        git config --global http.lowSpeedLimit 0
+        git config --global http.lowSpeedTime 999999
+        git config --global --add url."https://${GH_TOKEN}@github.com/".insteadOf "https://github.com/"
+
     - name: Update feeds
       run: |
          cd openwrt
@@ -173,10 +182,17 @@ jobs:
       id: organize
       if: env.UPLOAD_FIRMWARE == 'true' && !cancelled()
       run: |
-        cd openwrt/bin/targets/*/*
-        rm -rf packages
-        echo "FIRMWARE=$PWD" >> $GITHUB_ENV
-        echo "status=success" >> $GITHUB_OUTPUT
+        # Ensure the build produced the targets directory before attempting to cd into it
+        if [ -d "openwrt/bin/targets" ]; then
+          cd openwrt/bin/targets/*/* || { echo "Failed to enter targets subdir" >&2; exit 1; }
+          rm -rf packages
+          echo "FIRMWARE=$PWD" >> $GITHUB_ENV
+          echo "status=success" >> $GITHUB_OUTPUT
+        else
+          echo "ERROR: openwrt/bin/targets not found. Build likely failed." >&2
+          echo "status=failure" >> $GITHUB_OUTPUT
+          exit 1
+        fi
 
     - name: Upload firmware directory
       uses: actions/upload-artifact@v4
