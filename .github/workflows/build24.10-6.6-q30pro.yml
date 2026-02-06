@@ -75,6 +75,18 @@ jobs:
 
     # --- Caching is disabled, no changes here ---
 
+    - name: Disable ci-llvm download for Rust builds
+      working-directory: /mnt
+      run: |
+        echo "Disable download-ci-llvm in any rust config files in the checked-out source..."
+        # Replace download-ci-llvm = true with false in any config.toml
+        find openwrt -type f -name config.toml -exec sed -i 's/download-ci-llvm *= *true/download-ci-llvm = false/g' {} + || true
+        # Also target known package paths (feeds/packages/lang/rust)
+        find openwrt -type f -path '*/feeds/packages/lang/rust/*' -name 'config.toml' -exec sed -i 's/download-ci-llvm *= *true/download-ci-llvm = false/g' {} + || true
+        find openwrt -type f -path '*/feeds/packages/lang/rust/*' -name 'Makefile' -exec sed -i 's/download-ci-llvm *= *true/download-ci-llvm = false/g' {} + || true
+        # Print occurrences for debugging
+        grep -R --line-number "download-ci-llvm" openwrt || true
+
     - name: Load custom feeds
       run: |
         [ -e $FEEDS_CONF ] && mv $FEEDS_CONF openwrt/feeds.conf.default
