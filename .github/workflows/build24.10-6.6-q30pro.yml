@@ -13,7 +13,7 @@ env:
   REPO_BRANCH: openwrt-24.10-6.6
   FEEDS_CONF: feeds.conf.default
   CONFIG_FILE: 2410-6.6-q30pro.config
-  DIY_P1_SH: 2410-diy-part1-pw.sh
+  DIY_P1_SH: 2410-diy-part1-ap.sh
   DIY_P2_SH: 2410-6.6-diy-part2-6-1-pw.sh
   RELEASE_FILE: 2410-6.6-oh-release.txt
   UPLOAD_BIN_DIR: false
